@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Crucial meta tag for mobile: prevents zooming and scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>WebAR Braces - Mobile Optimized</title>
+    <title>WebAR Braces - Pro Try-On</title>
     
     <!-- Three.js and GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -17,59 +16,86 @@
     <style>
         :root {
             --primary: #007AFF;
+            --bg-glass: rgba(15, 15, 15, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.15);
         }
 
-        /* Mobile Viewport Fixes */
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            position: fixed; /* Prevents mobile scroll bounce */
-            top: 0; left: 0;
-            overflow: hidden;
-            background-color: #000;
-            font-family: sans-serif;
+            position: fixed; top: 0; left: 0;
+            overflow: hidden; background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         .ar-container {
-            position: absolute;
-            top: 0; left: 0;
+            position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            display: flex;
-            justify-content: center; align-items: center;
+            display: flex; justify-content: center; align-items: center;
         }
 
         #webcam-video {
-            position: absolute;
-            width: 100%; height: 100%;
-            object-fit: cover; /* Fills screen perfectly */
-            transform: scaleX(-1); /* Mirror video */
-            z-index: 1;
+            position: absolute; width: 100%; height: 100%;
+            object-fit: cover; transform: scaleX(-1); z-index: 1;
         }
 
         #ar-canvas {
-            position: absolute;
-            width: 100%; height: 100%;
-            z-index: 2;
-            pointer-events: none;
+            position: absolute; width: 100%; height: 100%;
+            z-index: 2; pointer-events: none;
         }
 
-        /* Minimal Loading Screen */
+        /* Pro UI Overlay */
+        .ui-controls {
+            position: absolute; bottom: 40px; left: 50%;
+            transform: translateX(-50%); z-index: 10;
+            display: flex; gap: 8px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            padding: 8px; border-radius: 40px;
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .toggle-btn { display: none; }
+
+        .toggle-label {
+            padding: 12px 24px; border-radius: 30px;
+            color: #aaa; font-weight: 600; font-size: 13px;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .toggle-btn:checked + .toggle-label {
+            background: var(--primary); color: white;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4);
+        }
+
+        /* Loader & Error Screen */
         #loader {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: #000;
-            z-index: 999;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            transition: opacity 0.5s ease;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0a0a; z-index: 999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease; color: white; text-align: center; padding: 20px; box-sizing: border-box;
         }
 
         .spinner {
-            width: 40px; height: 40px;
+            width: 45px; height: 45px; margin-bottom: 20px;
             border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: var(--primary);
-            border-radius: 50%;
+            border-top-color: var(--primary); border-radius: 50%;
             animation: spin 1s linear infinite;
+        }
+
+        #error-msg {
+            display: none; background: rgba(255, 59, 48, 0.1);
+            border: 1px solid #ff3b30; padding: 20px; border-radius: 12px;
+            max-width: 400px; line-height: 1.5;
+        }
+
+        #error-msg h3 { color: #ff3b30; margin-top: 0; }
+        .refresh-btn {
+            margin-top: 20px; background: var(--primary); color: white; border: none;
+            padding: 12px 24px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -77,52 +103,81 @@
 </head>
 <body>
 
-    <!-- Minimal Loader (Disappears once camera starts) -->
     <div id="loader">
         <div class="spinner"></div>
+        <div id="loader-text">Loading AR Engine...</div>
+        
+        <!-- Android Overlay Error Handler -->
+        <div id="error-msg">
+            <h3>Camera Blocked</h3>
+            <p>Your device is blocking the camera because a floating bubble or overlay is active.</p>
+            <p style="font-size: 13px; color: #aaa; text-align: left;">
+                <strong>To fix this:</strong><br>
+                1. Close Messenger chat bubbles.<br>
+                2. Turn off screen recorders.<br>
+                3. Go to Settings > Apps > Special App Access > Display over other apps, and turn off active apps.
+            </p>
+            <button class="refresh-btn" onclick="window.location.reload()">I fixed it, Refresh</button>
+        </div>
     </div>
 
-    <!-- AR Container -->
     <div class="ar-container">
-        <!-- MUTED is strictly required for iOS Safari Autoplay -->
         <video id="webcam-video" autoplay playsinline muted></video>
         <canvas id="ar-canvas"></canvas>
     </div>
 
+    <!-- UI Selection -->
+    <div class="ui-controls">
+        <input type="radio" id="upper" name="braces-mode" value="upper" class="toggle-btn" checked>
+        <label for="upper" class="toggle-label">Upper</label>
+        
+        <input type="radio" id="lower" name="braces-mode" value="lower" class="toggle-btn">
+        <label for="lower" class="toggle-label">Lower</label>
+
+        <input type="radio" id="both" name="braces-mode" value="both" class="toggle-btn">
+        <label for="both" class="toggle-label">Both</label>
+    </div>
+
     <script>
         /**
-         * ⚙️ PERFECT TUNING VARIABLES
+         * ⚙️ PRO TUNING VARIABLES
          */
         const CONFIG = {
-            baselineScale: 1.2,   // Adjust if model is too small/big
-            yOffset: 0.015,       // Pushes model slightly down from upper lip
-            depthZ: -50,          // Distance from camera
-            mouthThreshold: 0.01, // How wide mouth must open before braces appear
-            smoothness: 0.4       // Jitter reduction (0.1 to 1.0)
+            // SCALE: Adjust this single number if the model is too big/small. 
+            // Because we use True 3D Math now, it will look identical on PC and Mobile!
+            scaleMultiplier: 0.9, 
+            
+            // OFFSETS: Push the model slightly down (upper) or up (lower) to sit on the teeth
+            yOffsetUpper: 0.025,  
+            yOffsetLower: -0.025, 
+            
+            depthZ: -50,          // Render distance
+            mouthThreshold: 0.01, // Mouth open sensitivity
+            smoothness: 0.35      // Anti-jitter (0.1 to 1.0)
         };
 
-        const LANDMARKS = {
-            mouthLeft: 61,
-            mouthRight: 291,
-            upperLip: 13,
-            lowerLip: 14
-        };
+        const LANDMARKS = { mouthLeft: 61, mouthRight: 291, upperLip: 13, lowerLip: 14, noseTip: 1 };
 
-        // DOM Elements
         const video = document.getElementById('webcam-video');
         const canvas = document.getElementById('ar-canvas');
         const loader = document.getElementById('loader');
+        const toggles = document.querySelectorAll('input[name="braces-mode"]');
 
+        let currentMode = 'upper'; // 'upper', 'lower', or 'both'
         let isInitialized = false;
         let isMouthOpen = false;
         let faceDetected = false;
 
-        let targetPosition = new THREE.Vector3();
-        let targetScale = new THREE.Vector3();
-        let targetRotation = new THREE.Euler();
-        let targetQuaternion = new THREE.Quaternion();
+        // Targets for Upper Braces
+        let tPosUpper = new THREE.Vector3(), tScaleUpper = new THREE.Vector3(), tQuatUpper = new THREE.Quaternion();
+        // Targets for Lower Braces
+        let tPosLower = new THREE.Vector3(), tScaleLower = new THREE.Vector3(), tQuatLower = new THREE.Quaternion();
 
-        let scene, camera, renderer, bracesModel;
+        let scene, camera, renderer;
+        let bracesUpper, bracesLower;
+
+        // Listen for UI Changes
+        toggles.forEach(t => t.addEventListener('change', (e) => currentMode = e.target.value));
 
         function initThreeJS() {
             scene = new THREE.Scene();
@@ -131,36 +186,42 @@
 
             renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // Cap pixel ratio for mobile performance (prevents overheating/lag)
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Mobile battery optimization
 
-            // Lighting
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            // Pro Lighting Setup (Makes metal/ceramic look real)
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(0, 10, 10);
+            dirLight.position.set(0, 5, 10);
             scene.add(dirLight);
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            hemiLight.position.set(0, 20, 0);
+            scene.add(hemiLight);
 
-            // Load Model
+            // Load Model & Clone for Upper/Lower
             new THREE.GLTFLoader().load('braces.glb', (gltf) => {
-                bracesModel = gltf.scene;
+                const baseModel = gltf.scene;
                 
-                // Center model geometry perfectly
-                const box = new THREE.Box3().setFromObject(bracesModel);
+                // Center geometry
+                const box = new THREE.Box3().setFromObject(baseModel);
                 const center = box.getCenter(new THREE.Vector3());
-                bracesModel.position.sub(center);
+                baseModel.position.sub(center);
                 
-                // Wrap in a group for pivoting
-                const pivotGroup = new THREE.Group();
-                pivotGroup.add(bracesModel);
-                bracesModel = pivotGroup;
-                
-                bracesModel.visible = false;
-                scene.add(bracesModel);
-            }, undefined, (error) => {
-                console.error("Error: braces.glb not found. Make sure you are running a local server.");
-            });
+                // Create Upper Instance
+                const groupUpper = new THREE.Group();
+                groupUpper.add(baseModel.clone());
+                bracesUpper = groupUpper;
+                bracesUpper.visible = false;
+                scene.add(bracesUpper);
 
-            // Handle Mobile Screen Rotation & Resizing
+                // Create Lower Instance
+                const groupLower = new THREE.Group();
+                groupLower.add(baseModel.clone());
+                bracesLower = groupLower;
+                bracesLower.visible = false;
+                scene.add(bracesLower);
+
+            }, undefined, (err) => console.error("Error loading braces.glb"));
+
             const onWindowResize = () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -172,18 +233,13 @@
             animate();
         }
 
-        /**
-         * 100% PERFECT ALIGNMENT MATH (Mobile Aspect Ratio Safe)
-         */
+        // Calculates exact 3D position regardless of screen aspect ratio
         function getPerfect3DPosition(mpX, mpY, zDepth) {
             const flippedX = 1.0 - mpX;
-            const flippedY = mpY;
-
             const videoRatio = video.videoWidth / video.videoHeight;
             const windowRatio = window.innerWidth / window.innerHeight;
             
             let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
-            
             if (windowRatio > videoRatio) {
                 renderWidth = window.innerWidth;
                 renderHeight = window.innerWidth / videoRatio;
@@ -195,54 +251,58 @@
             }
 
             const pixelX = (flippedX * renderWidth) + offsetX;
-            const pixelY = (flippedY * renderHeight) + offsetY;
-
+            const pixelY = (mpY * renderHeight) + offsetY;
             const ndcX = (pixelX / window.innerWidth) * 2 - 1;
             const ndcY = -(pixelY / window.innerHeight) * 2 + 1;
 
             const vector = new THREE.Vector3(ndcX, ndcY, 0.5);
             vector.unproject(camera);
             vector.sub(camera.position).normalize();
-            const distance = zDepth / vector.z;
-            return camera.position.clone().add(vector.multiplyScalar(distance));
+            return camera.position.clone().add(vector.multiplyScalar(zDepth / vector.z));
         }
 
         function onResults(results) {
-            // Hide loader once video is actively playing and sized
             if (!isInitialized && video.videoWidth > 0) {
                 loader.style.opacity = '0';
                 setTimeout(() => loader.style.display = 'none', 500);
                 isInitialized = true;
             }
 
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0 && bracesModel) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0 && bracesUpper && bracesLower) {
                 faceDetected = true;
-                const landmarks = results.multiFaceLandmarks[0];
+                const lm = results.multiFaceLandmarks[0];
                 
-                const left = landmarks[LANDMARKS.mouthLeft];
-                const right = landmarks[LANDMARKS.mouthRight];
-                const upper = landmarks[LANDMARKS.upperLip];
-                const lower = landmarks[LANDMARKS.lowerLip];
+                const left = lm[LANDMARKS.mouthLeft];
+                const right = lm[LANDMARKS.mouthRight];
+                const upper = lm[LANDMARKS.upperLip];
+                const lower = lm[LANDMARKS.lowerLip];
+                const nose = lm[LANDMARKS.noseTip];
 
-                const mouthOpenDist = Math.abs(lower.y - upper.y);
-                isMouthOpen = mouthOpenDist > CONFIG.mouthThreshold;
+                isMouthOpen = Math.abs(lower.y - upper.y) > CONFIG.mouthThreshold;
 
                 if (isMouthOpen) {
-                    // Center X and Anchor Y (Upper Teeth Default)
-                    const centerX = (left.x + right.x) / 2;
-                    const anchorY = upper.y; 
+                    // 1. DYNAMIC 3D SCALING (Fixes PC vs Mobile size differences)
+                    const left3D = getPerfect3DPosition(left.x, left.y, CONFIG.depthZ);
+                    const right3D = getPerfect3DPosition(right.x, right.y, CONFIG.depthZ);
+                    const trueMouthWidth3D = left3D.distanceTo(right3D);
                     
-                    targetPosition = getPerfect3DPosition(centerX, anchorY + CONFIG.yOffset, CONFIG.depthZ);
+                    const scaleVal = trueMouthWidth3D * CONFIG.scaleMultiplier;
+                    tScaleUpper.set(scaleVal, scaleVal, scaleVal);
+                    tScaleLower.set(scaleVal, scaleVal, scaleVal);
 
-                    const mouthWidth = Math.sqrt(Math.pow(right.x - left.x, 2) + Math.pow(right.y - left.y, 2));
-                    const s = mouthWidth * Math.abs(CONFIG.depthZ) * CONFIG.baselineScale;
-                    targetScale.set(s, s, s);
-
+                    // 2. ADVANCED 3D ROTATION (Roll, Yaw, Pitch)
                     const rollZ = Math.atan2(right.y - left.y, right.x - left.x); 
                     const yawY = Math.atan2(right.z - left.z, right.x - left.x) * 1.5; 
-                    
-                    targetRotation.set(0, -yawY, -rollZ);
-                    targetQuaternion.setFromEuler(targetRotation);
+                    const pitchX = Math.atan2(nose.z - upper.z, nose.y - upper.y) * 0.5; // Up/down tilt
+
+                    const euler = new THREE.Euler(pitchX, -yawY, -rollZ);
+                    tQuatUpper.setFromEuler(euler);
+                    tQuatLower.setFromEuler(euler);
+
+                    // 3. INDEPENDENT POSITIONING
+                    const centerX = (left.x + right.x) / 2;
+                    tPosUpper = getPerfect3DPosition(centerX, upper.y + CONFIG.yOffsetUpper, CONFIG.depthZ);
+                    tPosLower = getPerfect3DPosition(centerX, lower.y + CONFIG.yOffsetLower, CONFIG.depthZ);
                 }
             } else {
                 faceDetected = false;
@@ -252,47 +312,49 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            if (bracesModel) {
+            if (bracesUpper && bracesLower) {
                 if (faceDetected && isMouthOpen) {
-                    bracesModel.visible = true;
-                    bracesModel.position.lerp(targetPosition, CONFIG.smoothness);
-                    bracesModel.scale.lerp(targetScale, CONFIG.smoothness);
-                    bracesModel.quaternion.slerp(targetQuaternion, CONFIG.smoothness);
+                    // Visibility Logic
+                    bracesUpper.visible = (currentMode === 'upper' || currentMode === 'both');
+                    bracesLower.visible = (currentMode === 'lower' || currentMode === 'both');
+
+                    // Smooth Lerp Interpolation
+                    if (bracesUpper.visible) {
+                        bracesUpper.position.lerp(tPosUpper, CONFIG.smoothness);
+                        bracesUpper.scale.lerp(tScaleUpper, CONFIG.smoothness);
+                        bracesUpper.quaternion.slerp(tQuatUpper, CONFIG.smoothness);
+                    }
+                    if (bracesLower.visible) {
+                        bracesLower.position.lerp(tPosLower, CONFIG.smoothness);
+                        bracesLower.scale.lerp(tScaleLower, CONFIG.smoothness);
+                        bracesLower.quaternion.slerp(tQuatLower, CONFIG.smoothness);
+                    }
                 } else {
-                    bracesModel.visible = false;
+                    bracesUpper.visible = false;
+                    bracesLower.visible = false;
                 }
             }
             renderer.render(scene, camera);
         }
 
         function initMediaPipe() {
-            const faceMesh = new FaceMesh({locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-            }});
-
-            faceMesh.setOptions({
-                maxNumFaces: 1,
-                refineLandmarks: true,
-                minDetectionConfidence: 0.6,
-                minTrackingConfidence: 0.6
-            });
-
+            const faceMesh = new FaceMesh({locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`});
+            faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
             faceMesh.onResults(onResults);
 
-            // Mobile specific camera initialization
             const cameraUtils = new Camera(video, {
                 onFrame: async () => { await faceMesh.send({image: video}); },
-                facingMode: 'user' // Forces front-facing camera on mobile
-                // Removed hardcoded width/height so mobile devices use native resolution
+                facingMode: 'user'
             });
 
-            cameraUtils.start();
+            cameraUtils.start().catch((err) => {
+                document.querySelector('.spinner').style.display = 'none';
+                document.getElementById('loader-text').style.display = 'none';
+                document.getElementById('error-msg').style.display = 'block';
+            });
         }
 
-        window.onload = () => {
-            initThreeJS();
-            initMediaPipe();
-        };
+        window.onload = () => { initThreeJS(); initMediaPipe(); };
     </script>
 </body>
 </html>
