@@ -2,21 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Viewport fit=cover prevents mobile UI from breaking the layout -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>WebAR Braces - PC & Mobile Perfect</title>
+    <title>WebAR Braces - Final Perfect Alignment</title>
     
-    <!-- Three.js and GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     
-    <!-- MediaPipe Face Mesh -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 
     <style>
         :root {
             --primary: #007AFF;
-            --bg-glass: rgba(20, 20, 20, 0.7);
+            --bg-glass: rgba(20, 20, 20, 0.8);
             --border-glass: rgba(255, 255, 255, 0.2);
         }
 
@@ -29,11 +28,11 @@
             background-color: #000;
         }
 
-        .ar-container {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            display: flex;
-            justify-content: center; align-items: center;
+        /* THE MOBILE FIX: This container locks the dimensions so the address bar doesn't break the math */
+        #app-container {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
         }
 
         #webcam-video {
@@ -51,71 +50,34 @@
             pointer-events: none;
         }
 
-        /* Modern UI */
         .ui-overlay {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            display: flex;
-            gap: 10px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            padding: 10px;
-            border-radius: 50px;
-            border: 1px solid var(--border-glass);
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            z-index: 10; display: flex; gap: 10px;
+            background: var(--bg-glass); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 10px; border-radius: 50px; border: 1px solid var(--border-glass);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
         }
 
         .toggle-btn { display: none; }
-
         .toggle-label {
-            padding: 12px 24px;
-            border-radius: 30px;
-            color: #ccc;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            font-size: 13px;
-            letter-spacing: 1px;
+            padding: 12px 24px; border-radius: 30px; color: #ccc;
+            font-weight: bold; cursor: pointer; transition: all 0.3s ease;
+            text-transform: uppercase; font-size: 13px; letter-spacing: 1px;
         }
-
         .toggle-btn:checked + .toggle-label {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.6);
+            background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.6);
         }
 
-        /* Loading Screen */
         #loader {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: #111;
-            z-index: 999;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            color: white;
-            transition: opacity 0.5s ease;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #111; z-index: 999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: white; transition: opacity 0.5s ease;
         }
-
         .spinner {
-            width: 45px; height: 45px;
-            border: 4px solid rgba(255,255,255,0.1);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
+            width: 45px; height: 45px; border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-
-        #error-msg {
-            color: #ff453a; margin-top: 15px;
-            text-align: center; max-width: 80%;
-            display: none; font-weight: 500;
-        }
-
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
@@ -124,11 +86,10 @@
     <div id="loader">
         <div class="spinner"></div>
         <div id="loader-text">Initializing AR Engine...</div>
-        <div id="error-msg"></div>
     </div>
 
-    <div class="ar-container">
-        <!-- Added muted playsinline for mobile compatibility -->
+    <!-- Everything is now inside the locked container -->
+    <div id="app-container">
         <video id="webcam-video" autoplay playsinline muted></video>
         <canvas id="ar-canvas"></canvas>
     </div>
@@ -143,33 +104,27 @@
 
     <script>
         /**
-         * ⚙️ PERFECT TUNING VARIABLES (Updated for Mobile)
+         * ⚙️ EXACT TUNING VARIABLES FROM YOUR CODE
          */
         const CONFIG = {
-            baselineScale: 1.0,   // Adjusted for new 3D math
-            yOffsetUpper: 0.00,   // Set to 0 so it perfectly tracks the lip line on mobile
-            yOffsetLower: 0.00,   // Set to 0 so it perfectly tracks the lip line on mobile
+            baselineScale: 1.0,   
+            yOffsetUpper: 0.00,   
+            yOffsetLower: 0.00,   
             depthZ: -50,          
             mouthThreshold: 0.01, 
             smoothness: 0.4       
         };
 
-        const LANDMARKS = {
-            mouthLeft: 61,
-            mouthRight: 291,
-            upperLip: 13,
-            lowerLip: 14
-        };
+        const LANDMARKS = { mouthLeft: 61, mouthRight: 291, upperLip: 13, lowerLip: 14 };
 
+        const container = document.getElementById('app-container');
         const video = document.getElementById('webcam-video');
         const canvas = document.getElementById('ar-canvas');
         const loader = document.getElementById('loader');
         const toggles = document.querySelectorAll('input[name="teeth-toggle"]');
 
         let currentTarget = 'upper';
-        let isInitialized = false;
-        let isMouthOpen = false;
-        let faceDetected = false;
+        let isInitialized = false, isMouthOpen = false, faceDetected = false;
 
         let targetPosition = new THREE.Vector3();
         let targetScale = new THREE.Vector3();
@@ -184,11 +139,12 @@
 
         function initThreeJS() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            // Use container width/height instead of window to fix mobile bug
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
             camera.position.z = 0;
 
             renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
             scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -198,7 +154,6 @@
 
             new THREE.GLTFLoader().load('braces.glb', (gltf) => {
                 bracesModel = gltf.scene;
-                
                 const box = new THREE.Box3().setFromObject(bracesModel);
                 const center = box.getCenter(new THREE.Vector3());
                 bracesModel.position.sub(center);
@@ -206,21 +161,16 @@
                 const pivotGroup = new THREE.Group();
                 pivotGroup.add(bracesModel);
                 bracesModel = pivotGroup;
-                
                 bracesModel.visible = false;
                 scene.add(bracesModel);
                 
                 document.getElementById('loader-text').innerText = "Starting Camera...";
-            }, undefined, (error) => {
-                document.getElementById('error-msg').innerText = "Error: braces.glb not found.";
-                document.getElementById('error-msg').style.display = 'block';
-                document.querySelector('.spinner').style.display = 'none';
             });
 
             const onWindowResize = () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.aspect = container.clientWidth / container.clientHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setSize(container.clientWidth, container.clientHeight);
             };
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 100));
@@ -228,30 +178,33 @@
             animate();
         }
 
+        /**
+         * UPDATED MATH: Uses container dimensions to perfectly align on mobile
+         */
         function getPerfect3DPosition(mpX, mpY, zDepth) {
             const flippedX = 1.0 - mpX;
             const flippedY = mpY;
 
             const videoRatio = video.videoWidth / video.videoHeight;
-            const windowRatio = window.innerWidth / window.innerHeight;
+            const windowRatio = container.clientWidth / container.clientHeight;
             
             let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
             
             if (windowRatio > videoRatio) {
-                renderWidth = window.innerWidth;
-                renderHeight = window.innerWidth / videoRatio;
-                offsetY = (window.innerHeight - renderHeight) / 2;
+                renderWidth = container.clientWidth;
+                renderHeight = container.clientWidth / videoRatio;
+                offsetY = (container.clientHeight - renderHeight) / 2;
             } else {
-                renderHeight = window.innerHeight;
-                renderWidth = window.innerHeight * videoRatio;
-                offsetX = (window.innerWidth - renderWidth) / 2;
+                renderHeight = container.clientHeight;
+                renderWidth = container.clientHeight * videoRatio;
+                offsetX = (container.clientWidth - renderWidth) / 2;
             }
 
             const pixelX = (flippedX * renderWidth) + offsetX;
             const pixelY = (flippedY * renderHeight) + offsetY;
 
-            const ndcX = (pixelX / window.innerWidth) * 2 - 1;
-            const ndcY = -(pixelY / window.innerHeight) * 2 + 1;
+            const ndcX = (pixelX / container.clientWidth) * 2 - 1;
+            const ndcY = -(pixelY / container.clientHeight) * 2 + 1;
 
             const vector = new THREE.Vector3(ndcX, ndcY, 0.5);
             vector.unproject(camera);
@@ -286,16 +239,14 @@
                     
                     targetPosition = getPerfect3DPosition(centerX, anchorY + yOffset, CONFIG.depthZ);
 
-                    // --- THE FIX: TRUE 3D SCALE ---
-                    // This calculates the distance in 3D space, which prevents the 
-                    // model from getting huge on mobile aspect ratios.
+                    // YOUR PREFERRED 3D SCALE MATH
                     const left3D = getPerfect3DPosition(left.x, left.y, CONFIG.depthZ);
                     const right3D = getPerfect3DPosition(right.x, right.y, CONFIG.depthZ);
                     const trueMouthWidth = left3D.distanceTo(right3D);
-                    
                     const s = trueMouthWidth * CONFIG.baselineScale;
                     targetScale.set(s, s, s);
 
+                    // YOUR PREFERRED ROTATION MATH
                     const rollZ = Math.atan2(right.y - left.y, right.x - left.x); 
                     const yawY = Math.atan2(right.z - left.z, right.x - left.x) * 1.5; 
                     
@@ -324,32 +275,19 @@
         }
 
         function initMediaPipe() {
-            const faceMesh = new FaceMesh({locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-            }});
-
-            faceMesh.setOptions({
-                maxNumFaces: 1,
-                refineLandmarks: true,
-                minDetectionConfidence: 0.6,
-                minTrackingConfidence: 0.6
-            });
-
+            const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+            faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
             faceMesh.onResults(onResults);
 
             const cameraUtils = new Camera(video, {
                 onFrame: async () => { await faceMesh.send({image: video}); },
                 facingMode: 'user' 
-                // THE FIX: Removed hardcoded 1280x720 so the phone doesn't stretch the image!
             });
 
             cameraUtils.start();
         }
 
-        window.onload = () => {
-            initThreeJS();
-            initMediaPipe();
-        };
+        window.onload = () => { initThreeJS(); initMediaPipe(); };
     </script>
 </body>
 </html>
