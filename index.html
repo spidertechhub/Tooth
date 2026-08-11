@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WebAR Braces - 100% Perfect Alignment</title>
+    <!-- Crucial meta tag for mobile: prevents zooming and scaling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>WebAR Braces - Mobile Optimized</title>
     
     <!-- Three.js and GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -16,20 +17,22 @@
     <style>
         :root {
             --primary: #007AFF;
-            --bg-glass: rgba(20, 20, 20, 0.7);
-            --border-glass: rgba(255, 255, 255, 0.2);
         }
 
+        /* Mobile Viewport Fixes */
         body, html {
             margin: 0; padding: 0;
-            width: 100vw; height: 100vh;
+            width: 100%; height: 100%;
+            position: fixed; /* Prevents mobile scroll bounce */
+            top: 0; left: 0;
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background-color: #000;
+            font-family: sans-serif;
         }
 
         .ar-container {
-            position: relative;
+            position: absolute;
+            top: 0; left: 0;
             width: 100%; height: 100%;
             display: flex;
             justify-content: center; align-items: center;
@@ -50,69 +53,23 @@
             pointer-events: none;
         }
 
-        /* Modern UI */
-        .ui-overlay {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            display: flex;
-            gap: 10px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            padding: 10px;
-            border-radius: 50px;
-            border: 1px solid var(--border-glass);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-        }
-
-        .toggle-btn { display: none; }
-
-        .toggle-label {
-            padding: 12px 24px;
-            border-radius: 30px;
-            color: #ccc;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            font-size: 13px;
-            letter-spacing: 1px;
-        }
-
-        .toggle-btn:checked + .toggle-label {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.6);
-        }
-
-        /* Loading Screen */
+        /* Minimal Loading Screen */
         #loader {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
-            background: #111;
+            background: #000;
             z-index: 999;
             display: flex; flex-direction: column;
             justify-content: center; align-items: center;
-            color: white;
             transition: opacity 0.5s ease;
         }
 
         .spinner {
-            width: 45px; height: 45px;
-            border: 4px solid rgba(255,255,255,0.1);
+            width: 40px; height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
             border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-
-        #error-msg {
-            color: #ff453a; margin-top: 15px;
-            text-align: center; max-width: 80%;
-            display: none; font-weight: 500;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -120,23 +77,16 @@
 </head>
 <body>
 
+    <!-- Minimal Loader (Disappears once camera starts) -->
     <div id="loader">
         <div class="spinner"></div>
-        <div id="loader-text">Initializing AR Engine...</div>
-        <div id="error-msg"></div>
     </div>
 
+    <!-- AR Container -->
     <div class="ar-container">
-        <video id="webcam-video" autoplay playsinline></video>
+        <!-- MUTED is strictly required for iOS Safari Autoplay -->
+        <video id="webcam-video" autoplay playsinline muted></video>
         <canvas id="ar-canvas"></canvas>
-    </div>
-
-    <div class="ui-overlay">
-        <input type="radio" id="upper" name="teeth-toggle" value="upper" class="toggle-btn" checked>
-        <label for="upper" class="toggle-label">Upper Teeth</label>
-        
-        <input type="radio" id="lower" name="teeth-toggle" value="lower" class="toggle-btn">
-        <label for="lower" class="toggle-label">Lower Teeth</label>
     </div>
 
     <script>
@@ -144,9 +94,8 @@
          * ⚙️ PERFECT TUNING VARIABLES
          */
         const CONFIG = {
-            baselineScale: 1.2,   // <-- CHANGE THIS IF MODEL IS STILL TOO SMALL/BIG
-            yOffsetUpper: 0.015,  // Pushes model slightly down from upper lip
-            yOffsetLower: -0.015, // Pushes model slightly up from lower lip
+            baselineScale: 1.2,   // Adjust if model is too small/big
+            yOffset: 0.015,       // Pushes model slightly down from upper lip
             depthZ: -50,          // Distance from camera
             mouthThreshold: 0.01, // How wide mouth must open before braces appear
             smoothness: 0.4       // Jitter reduction (0.1 to 1.0)
@@ -163,9 +112,7 @@
         const video = document.getElementById('webcam-video');
         const canvas = document.getElementById('ar-canvas');
         const loader = document.getElementById('loader');
-        const toggles = document.querySelectorAll('input[name="teeth-toggle"]');
 
-        let currentTarget = 'upper';
         let isInitialized = false;
         let isMouthOpen = false;
         let faceDetected = false;
@@ -177,10 +124,6 @@
 
         let scene, camera, renderer, bracesModel;
 
-        toggles.forEach(toggle => {
-            toggle.addEventListener('change', (e) => { currentTarget = e.target.value; });
-        });
-
         function initThreeJS() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -188,7 +131,8 @@
 
             renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            // Cap pixel ratio for mobile performance (prevents overheating/lag)
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
             // Lighting
             scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -212,59 +156,50 @@
                 
                 bracesModel.visible = false;
                 scene.add(bracesModel);
-                
-                document.getElementById('loader-text').innerText = "Starting Camera...";
             }, undefined, (error) => {
-                document.getElementById('error-msg').innerText = "Error: braces.glb not found.";
-                document.getElementById('error-msg').style.display = 'block';
-                document.querySelector('.spinner').style.display = 'none';
+                console.error("Error: braces.glb not found. Make sure you are running a local server.");
             });
 
-            window.addEventListener('resize', () => {
+            // Handle Mobile Screen Rotation & Resizing
+            const onWindowResize = () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            };
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 100));
 
             animate();
         }
 
         /**
-         * 100% PERFECT ALIGNMENT MATH
-         * Calculates exactly how the video is cropped on the screen and aligns 3D coords to it.
+         * 100% PERFECT ALIGNMENT MATH (Mobile Aspect Ratio Safe)
          */
         function getPerfect3DPosition(mpX, mpY, zDepth) {
-            // 1. Flip X because video is mirrored
             const flippedX = 1.0 - mpX;
             const flippedY = mpY;
 
-            // 2. Account for object-fit: cover cropping
             const videoRatio = video.videoWidth / video.videoHeight;
             const windowRatio = window.innerWidth / window.innerHeight;
             
             let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
             
             if (windowRatio > videoRatio) {
-                // Screen is wider than video
                 renderWidth = window.innerWidth;
                 renderHeight = window.innerWidth / videoRatio;
                 offsetY = (window.innerHeight - renderHeight) / 2;
             } else {
-                // Screen is taller than video
                 renderHeight = window.innerHeight;
                 renderWidth = window.innerHeight * videoRatio;
                 offsetX = (window.innerWidth - renderWidth) / 2;
             }
 
-            // 3. Calculate exact pixel position on screen
             const pixelX = (flippedX * renderWidth) + offsetX;
             const pixelY = (flippedY * renderHeight) + offsetY;
 
-            // 4. Convert to Three.js Normalized Device Coordinates (-1 to +1)
             const ndcX = (pixelX / window.innerWidth) * 2 - 1;
             const ndcY = -(pixelY / window.innerHeight) * 2 + 1;
 
-            // 5. Project to 3D space
             const vector = new THREE.Vector3(ndcX, ndcY, 0.5);
             vector.unproject(camera);
             vector.sub(camera.position).normalize();
@@ -273,6 +208,7 @@
         }
 
         function onResults(results) {
+            // Hide loader once video is actively playing and sized
             if (!isInitialized && video.videoWidth > 0) {
                 loader.style.opacity = '0';
                 setTimeout(() => loader.style.display = 'none', 500);
@@ -288,27 +224,20 @@
                 const upper = landmarks[LANDMARKS.upperLip];
                 const lower = landmarks[LANDMARKS.lowerLip];
 
-                // Check if mouth is open
                 const mouthOpenDist = Math.abs(lower.y - upper.y);
                 isMouthOpen = mouthOpenDist > CONFIG.mouthThreshold;
 
                 if (isMouthOpen) {
-                    // 1. Calculate X Center (Guarantees it doesn't drift left/right)
+                    // Center X and Anchor Y (Upper Teeth Default)
                     const centerX = (left.x + right.x) / 2;
+                    const anchorY = upper.y; 
                     
-                    // 2. Calculate Y Anchor
-                    const anchorY = currentTarget === 'upper' ? upper.y : lower.y;
-                    const yOffset = currentTarget === 'upper' ? CONFIG.yOffsetUpper : CONFIG.yOffsetLower;
-                    
-                    // Apply perfect alignment math
-                    targetPosition = getPerfect3DPosition(centerX, anchorY + yOffset, CONFIG.depthZ);
+                    targetPosition = getPerfect3DPosition(centerX, anchorY + CONFIG.yOffset, CONFIG.depthZ);
 
-                    // 3. Calculate Scale
                     const mouthWidth = Math.sqrt(Math.pow(right.x - left.x, 2) + Math.pow(right.y - left.y, 2));
                     const s = mouthWidth * Math.abs(CONFIG.depthZ) * CONFIG.baselineScale;
                     targetScale.set(s, s, s);
 
-                    // 4. Calculate 3D Rotation (Adjusted for mirror)
                     const rollZ = Math.atan2(right.y - left.y, right.x - left.x); 
                     const yawY = Math.atan2(right.z - left.z, right.x - left.x) * 1.5; 
                     
@@ -326,7 +255,6 @@
             if (bracesModel) {
                 if (faceDetected && isMouthOpen) {
                     bracesModel.visible = true;
-                    // Smooth tracking
                     bracesModel.position.lerp(targetPosition, CONFIG.smoothness);
                     bracesModel.scale.lerp(targetScale, CONFIG.smoothness);
                     bracesModel.quaternion.slerp(targetQuaternion, CONFIG.smoothness);
@@ -351,11 +279,11 @@
 
             faceMesh.onResults(onResults);
 
+            // Mobile specific camera initialization
             const cameraUtils = new Camera(video, {
                 onFrame: async () => { await faceMesh.send({image: video}); },
-                // Use standard HD resolution, the math will handle the cropping automatically
-                width: 1280, 
-                height: 720
+                facingMode: 'user' // Forces front-facing camera on mobile
+                // Removed hardcoded width/height so mobile devices use native resolution
             });
 
             cameraUtils.start();
