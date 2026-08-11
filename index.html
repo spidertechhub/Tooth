@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WebAR Braces - 100% Perfect Alignment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>WebAR Braces - PC & Mobile Perfect</title>
     
     <!-- Three.js and GLTFLoader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -22,14 +22,15 @@
 
         body, html {
             margin: 0; padding: 0;
-            width: 100vw; height: 100vh;
+            width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background-color: #000;
         }
 
         .ar-container {
-            position: relative;
+            position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
             display: flex;
             justify-content: center; align-items: center;
@@ -38,8 +39,8 @@
         #webcam-video {
             position: absolute;
             width: 100%; height: 100%;
-            object-fit: cover; /* Fills screen perfectly */
-            transform: scaleX(-1); /* Mirror video */
+            object-fit: cover; 
+            transform: scaleX(-1); 
             z-index: 1;
         }
 
@@ -127,7 +128,8 @@
     </div>
 
     <div class="ar-container">
-        <video id="webcam-video" autoplay playsinline></video>
+        <!-- Added muted playsinline for mobile compatibility -->
+        <video id="webcam-video" autoplay playsinline muted></video>
         <canvas id="ar-canvas"></canvas>
     </div>
 
@@ -141,15 +143,15 @@
 
     <script>
         /**
-         * ⚙️ PERFECT TUNING VARIABLES
+         * ⚙️ PERFECT TUNING VARIABLES (Updated for Mobile)
          */
         const CONFIG = {
-            baselineScale: 1.2,   // <-- CHANGE THIS IF MODEL IS STILL TOO SMALL/BIG
-            yOffsetUpper: 0.015,  // Pushes model slightly down from upper lip
-            yOffsetLower: -0.015, // Pushes model slightly up from lower lip
-            depthZ: -50,          // Distance from camera
-            mouthThreshold: 0.01, // How wide mouth must open before braces appear
-            smoothness: 0.4       // Jitter reduction (0.1 to 1.0)
+            baselineScale: 1.0,   // Adjusted for new 3D math
+            yOffsetUpper: 0.00,   // Set to 0 so it perfectly tracks the lip line on mobile
+            yOffsetLower: 0.00,   // Set to 0 so it perfectly tracks the lip line on mobile
+            depthZ: -50,          
+            mouthThreshold: 0.01, 
+            smoothness: 0.4       
         };
 
         const LANDMARKS = {
@@ -159,7 +161,6 @@
             lowerLip: 14
         };
 
-        // DOM Elements
         const video = document.getElementById('webcam-video');
         const canvas = document.getElementById('ar-canvas');
         const loader = document.getElementById('loader');
@@ -188,24 +189,20 @@
 
             renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-            // Lighting
             scene.add(new THREE.AmbientLight(0xffffff, 0.8));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(0, 10, 10);
             scene.add(dirLight);
 
-            // Load Model
             new THREE.GLTFLoader().load('braces.glb', (gltf) => {
                 bracesModel = gltf.scene;
                 
-                // Center model geometry perfectly
                 const box = new THREE.Box3().setFromObject(bracesModel);
                 const center = box.getCenter(new THREE.Vector3());
                 bracesModel.position.sub(center);
                 
-                // Wrap in a group for pivoting
                 const pivotGroup = new THREE.Group();
                 pivotGroup.add(bracesModel);
                 bracesModel = pivotGroup;
@@ -220,51 +217,42 @@
                 document.querySelector('.spinner').style.display = 'none';
             });
 
-            window.addEventListener('resize', () => {
+            const onWindowResize = () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            };
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 100));
 
             animate();
         }
 
-        /**
-         * 100% PERFECT ALIGNMENT MATH
-         * Calculates exactly how the video is cropped on the screen and aligns 3D coords to it.
-         */
         function getPerfect3DPosition(mpX, mpY, zDepth) {
-            // 1. Flip X because video is mirrored
             const flippedX = 1.0 - mpX;
             const flippedY = mpY;
 
-            // 2. Account for object-fit: cover cropping
             const videoRatio = video.videoWidth / video.videoHeight;
             const windowRatio = window.innerWidth / window.innerHeight;
             
             let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
             
             if (windowRatio > videoRatio) {
-                // Screen is wider than video
                 renderWidth = window.innerWidth;
                 renderHeight = window.innerWidth / videoRatio;
                 offsetY = (window.innerHeight - renderHeight) / 2;
             } else {
-                // Screen is taller than video
                 renderHeight = window.innerHeight;
                 renderWidth = window.innerHeight * videoRatio;
                 offsetX = (window.innerWidth - renderWidth) / 2;
             }
 
-            // 3. Calculate exact pixel position on screen
             const pixelX = (flippedX * renderWidth) + offsetX;
             const pixelY = (flippedY * renderHeight) + offsetY;
 
-            // 4. Convert to Three.js Normalized Device Coordinates (-1 to +1)
             const ndcX = (pixelX / window.innerWidth) * 2 - 1;
             const ndcY = -(pixelY / window.innerHeight) * 2 + 1;
 
-            // 5. Project to 3D space
             const vector = new THREE.Vector3(ndcX, ndcY, 0.5);
             vector.unproject(camera);
             vector.sub(camera.position).normalize();
@@ -288,27 +276,26 @@
                 const upper = landmarks[LANDMARKS.upperLip];
                 const lower = landmarks[LANDMARKS.lowerLip];
 
-                // Check if mouth is open
                 const mouthOpenDist = Math.abs(lower.y - upper.y);
                 isMouthOpen = mouthOpenDist > CONFIG.mouthThreshold;
 
                 if (isMouthOpen) {
-                    // 1. Calculate X Center (Guarantees it doesn't drift left/right)
                     const centerX = (left.x + right.x) / 2;
-                    
-                    // 2. Calculate Y Anchor
                     const anchorY = currentTarget === 'upper' ? upper.y : lower.y;
                     const yOffset = currentTarget === 'upper' ? CONFIG.yOffsetUpper : CONFIG.yOffsetLower;
                     
-                    // Apply perfect alignment math
                     targetPosition = getPerfect3DPosition(centerX, anchorY + yOffset, CONFIG.depthZ);
 
-                    // 3. Calculate Scale
-                    const mouthWidth = Math.sqrt(Math.pow(right.x - left.x, 2) + Math.pow(right.y - left.y, 2));
-                    const s = mouthWidth * Math.abs(CONFIG.depthZ) * CONFIG.baselineScale;
+                    // --- THE FIX: TRUE 3D SCALE ---
+                    // This calculates the distance in 3D space, which prevents the 
+                    // model from getting huge on mobile aspect ratios.
+                    const left3D = getPerfect3DPosition(left.x, left.y, CONFIG.depthZ);
+                    const right3D = getPerfect3DPosition(right.x, right.y, CONFIG.depthZ);
+                    const trueMouthWidth = left3D.distanceTo(right3D);
+                    
+                    const s = trueMouthWidth * CONFIG.baselineScale;
                     targetScale.set(s, s, s);
 
-                    // 4. Calculate 3D Rotation (Adjusted for mirror)
                     const rollZ = Math.atan2(right.y - left.y, right.x - left.x); 
                     const yawY = Math.atan2(right.z - left.z, right.x - left.x) * 1.5; 
                     
@@ -326,7 +313,6 @@
             if (bracesModel) {
                 if (faceDetected && isMouthOpen) {
                     bracesModel.visible = true;
-                    // Smooth tracking
                     bracesModel.position.lerp(targetPosition, CONFIG.smoothness);
                     bracesModel.scale.lerp(targetScale, CONFIG.smoothness);
                     bracesModel.quaternion.slerp(targetQuaternion, CONFIG.smoothness);
@@ -353,9 +339,8 @@
 
             const cameraUtils = new Camera(video, {
                 onFrame: async () => { await faceMesh.send({image: video}); },
-                // Use standard HD resolution, the math will handle the cropping automatically
-                width: 1280, 
-                height: 720
+                facingMode: 'user' 
+                // THE FIX: Removed hardcoded 1280x720 so the phone doesn't stretch the image!
             });
 
             cameraUtils.start();
